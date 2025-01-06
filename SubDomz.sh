@@ -12,8 +12,6 @@ VERSION="3.0"
 
 PRG=${0##*/}
 
-source config.txt
-
 Usage() {
         while read -r line; do
                 printf "%b\n" "$line"
@@ -263,14 +261,41 @@ Certspotter() {
 }
 
 VirusTotal() {
-  [ "$silent" == True ] && curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=$VIRUSTOTAL_API_KEY&domain=$domain" | jq | egrep -v "http|Alexa domain info" | grep "$domain" | sed 's/[",]//g' | sed 's/^[[:space:]]*//' | anew subdomz-$domain.txt || {
-  		[[ ${PARALLEL} == True ]] || { spinner "${BOLD}VirusTotal${NC}" &
-    			PID="$!"
-       		}
-	 	curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=$VIRUSTOTAL_API_KEY&domain=$domain" | jq | egrep -v "http|Alexa domain info" | grep "$domain" | sed 's/[",]//g' | sed 's/^[[:space:]]*//' | sort -u > tmp-virustotal-$domain
-   		[[ ${PARALLEL} == True ]] || kill ${PID} 2>/dev/null
-     		echo -e "$BOLD[*] VirusTotal$NC: $( wc -l < tmp-virustotal-$domain && echo)"
-       }
+  # Ensure domain and VIRUSTOTAL_API_KEY are set
+  if [ -z "$domain" ] || [ -z "$VIRUSTOTAL_API_KEY" ]; then
+    echo "Domain or API Key not set."
+    return 1
+  fi
+
+  if [ "$silent" == true ]; then
+    curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=$VIRUSTOTAL_API_KEY&domain=$domain" |
+      jq | egrep -v "http|Alexa domain info" |
+      grep "$domain" |
+      sed 's/[",]//g' |
+      sed 's/^[[:space:]]*//' |
+      anew subdomz-"$domain".txt
+  else
+    # Run the spinner in the background if PARALLEL is set to true
+    if [[ ${PARALLEL} == true ]]; then
+      spinner "${BOLD}VirusTotal${NC}" &
+      PID="$!"
+    fi
+
+    curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=$VIRUSTOTAL_API_KEY&domain=$domain" |
+      jq | egrep -v "http|Alexa domain info" |
+      grep "$domain" |
+      sed 's/[",]//g' |
+      sed 's/^[[:space:]]*//' |
+      sort -u > tmp-virustotal-"$domain"
+
+    if [[ ${PARALLEL} == true ]]; then
+      kill ${PID} 2>/dev/null
+    fi
+
+    # Print the result
+    echo -e "$BOLD[*] VirusTotal$NC: $(wc -l < tmp-virustotal-"$domain")"
+  fi
+}
 
 Puredns() {
   [ "$silent" == True ] && puredns bruteforce $WORDLISTS $DOMAIN --resolvers $RESOLVERS -q | anew subdomz-$domain.txt || {
@@ -353,7 +378,7 @@ List() {
                                 Alienvault
                                 Subdomain-center
                                 Certspotter
-				VirusTotal
+								VirusTotal
 								Puredns
 				[[ $out != False ]] && Out $out || Out
 			}
@@ -377,7 +402,7 @@ Main() {
 				parallel -j18 ::: Subfinder Amass Assetfinder Chaos Findomain Haktrails Gau Github-subdomains Gitlab-subdomains Cero Shosubgo Censys Crtsh JLDC Alienvault Subdomain-center Certspotter VirusTotal Puredns
 				kill ${PID}
 			} || {
-				Subfinder
+								Subfinder
                                 Amass
                                 Assetfinder
                                 Chaos
@@ -394,7 +419,7 @@ Main() {
                                 Alienvault
                                 Subdomain-center
                                 Certspotter
-				VirusTotal
+								VirusTotal
 								Puredns
 			}
 			[ $out == False ] && Out || Out $out
@@ -439,7 +464,7 @@ list=(
         Alienvault
         Subdomain-center
         Certspotter
-	VirusTotal
+		VirusTotal
 		Puredns
         )
 
@@ -497,15 +522,5 @@ while [ -n "$1" ]; do
 	shift
 done
 
-[ "$silent" == False ] && echo -e $CYAN"""
-   _____       __    ____                     
-  / ___/__  __/ /_  / __ \____  ____ ___  ____
-  \__ \/ / / / __ \/ / / / __ \/ __ '__ \/_  /
- ___/ / /_/ / /_/ / /_/ / /_/ / / / / / / / /_
-/____/\__,_/_.___/_____/\____/_/ /_/ /_/ /___/ $VERSION
-
- An Subdomain Subdomain Enumeration Tool
-                                $GREEN by @0xPugal $NC
-"""$NC
-
 Main
+
